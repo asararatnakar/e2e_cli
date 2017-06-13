@@ -22,7 +22,7 @@ function generateCerts (){
 	echo "##########################################################"
 	echo "##### Generate certificates using cryptogen tool #########"
 	echo "##########################################################"
-	$CRYPTOGEN generate --config=./crypto-config.yaml
+	$CRYPTOGEN generate --config=./cryptogen.yaml
 	echo
 }
 

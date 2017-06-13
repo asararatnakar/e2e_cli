@@ -1,50 +1,89 @@
 #!/bin/bash
-#
-# Copyright IBM Corp. All Rights Reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
-#
 
+function usage () {
+	echo
+	echo "======================================================================================================"
+	echo "Usage: "
+	echo "      network_setup.sh -n [channel-name] -s -c -t [cli timer] -f [compose yaml] <up|down|retstart>"
+	echo
+	echo "      ./network_setup.sh -n "mychannel" -c -s -t 10  restart"
+	echo
+	echo "		-i       Image tag"
+	echo "		-n       channel name"
+	echo "		-c       enable couchdb"
+	echo "		-f       Docker compose file for the network"
+	echo "		-s       Enable TLS"
+	echo "		-t       CLI container timeout"
+	echo "		up       Launch the network and start the test"
+	echo "		down     teardown the network and the test"
+	echo "		restart  Restart the network and start the test"
+	echo "======================================================================================================"
+	echo
+}
 
-UP_DOWN="$1"
-CH_NAME="$2"
-CLI_TIMEOUT="$3"
-IF_COUCHDB="$4"
-
-: ${CLI_TIMEOUT:="10000"}
-
-COMPOSE_FILE=docker-compose-cli.yaml
 COMPOSE_FILE_COUCH=docker-compose-couch.yaml
 
-function printHelp () {
-	echo "Usage: ./network_setup <up|down> <\$channel-name> <\$cli_timeout> <couchdb>.\nThe arguments must be in order."
-}
+while getopts "scn:f:t:i:h" opt; do
+  case "${opt}" in
+    i)
+      FABRIC_IMAGE_TAG="$OPTARG"
+      ;;
+    n)
+      CHANNEL_NAME="$OPTARG"
+      ;;
+    c)
+      COUCHDB="y" ## enable couchdb
+      ;;
+    t)
+      CLI_TIMEOUT=$OPTARG ## CLI container timeout
+      ;;
+    s)
+      SECURITY="y" #Enable TLS
+      ;;
+    h)
+      usage
+      exit 1
+      ;;
+    f)
+      COMPOSE_FILE="$OPTARG"
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
 
-function validateArgs () {
-	if [ -z "${UP_DOWN}" ]; then
-		UP_DOWN="restart"
-		echo "Using $UP_DOWN option"
-		return
-	fi
-	if [ -z "${CH_NAME}" ]; then
-		echo "setting to default channel 'mychannel'"
-		CH_NAME=mychannel
-	fi
-}
+## this is to read the argument up/down/restart
+shift $((OPTIND-1))
+UP_DOWN="$@"
+
+##Set Defaults
+: ${FABRIC_IMAGE_TAG:="x86_64-1.0.0-rc1-snapshot-f5dbbaf"}
+: ${CHANNEL_NAME:="mychannel"}
+: ${SECURITY:="n"}
+: ${COMPOSE_FILE:="docker-compose.yaml"}
+: ${UP_DOWN:="restart"}
+: ${CLI_TIMEOUT:="2"} ## Increase timeout for debugging purposes
+: ${COUCHDB:="n"}
+export FABRIC_IMAGE_TAG
+export CHANNEL_NAME
+export CLI_TIMEOUT
 
 function clearContainers () {
-        CONTAINER_IDS=$(docker ps -aq)
-        if [ -z "$CONTAINER_IDS" -o "$CONTAINER_IDS" = " " ]; then
-                echo "---- No containers available for deletion ----"
+        CONTAINERS=$(docker ps -a|wc -l)
+        if [ "$CONTAINERS" -gt "1" ]; then
+                docker rm -f $(docker ps -aq)
         else
-                docker rm -f $CONTAINER_IDS
+                printf "\n========== No containers available for deletion ==========\n"
         fi
 }
 
 function removeUnwantedImages() {
         DOCKER_IMAGE_IDS=$(docker images | grep "dev\|none\|test-vp\|peer[0-9]-" | awk '{print $3}')
         if [ -z "$DOCKER_IMAGE_IDS" -o "$DOCKER_IMAGE_IDS" = " " ]; then
-                echo "---- No images available for deletion ----"
+                printf "\n========== No images available for deletion ==========\n"
         else
                 docker rmi -f $DOCKER_IMAGE_IDS
         fi
@@ -53,9 +92,18 @@ function removeUnwantedImages() {
 function networkUp () {
     #Generate all the artifacts that includes org certs, orderer genesis block,
     # channel configuration transaction
-    source generateArtifacts.sh $CH_NAME
+    source generateArtifacts.sh $CHANNEL_NAME
 
-    CHANNEL_NAME=$CH_NAME TIMEOUT=$CLI_TIMEOUT docker-compose -f $COMPOSE_FILE -f $COMPOSE_FILE_COUCH up -d 2>&1
+    if [ "$SECURITY" == "y" -o "$SECURITY" == "Y" ]; then
+        export ENABLE_TLS=true
+    else
+        export ENABLE_TLS=false
+    fi
+    if [ "$COUCHDB" == "y" -o "$COUCHDB" == "Y" ]; then
+       docker-compose -f $COMPOSE_FILE -f $COMPOSE_FILE_COUCH up -d 2>&1
+    else
+       docker-compose -f $COMPOSE_FILE up -d 2>&1
+    fi
 
     if [ $? -ne 0 ]; then
 	echo "ERROR !!!! Unable to pull the images "
@@ -77,8 +125,6 @@ function networkDown () {
     rm -rf channel-artifacts/*.block channel-artifacts/*.tx crypto-config
 }
 
-validateArgs
-
 #Create the network using docker compose
 if [ "${UP_DOWN}" == "up" ]; then
 	networkUp
@@ -88,6 +134,6 @@ elif [ "${UP_DOWN}" == "restart" ]; then ## Restart the network
 	networkDown
 	networkUp
 else
-	printHelp
+	usage
 	exit 1
 fi
