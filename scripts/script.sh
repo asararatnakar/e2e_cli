@@ -15,11 +15,11 @@ COUNTER=1
 MAX_RETRY=5
 
 ORDERER_IP=orderer0.example.com
-ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/$ORDERER_IP/msp/cacerts/ca.example.com-cert.pem
+ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/$ORDERER_IP/msp/tlscacerts/tlsca.example.com-cert.pem
 echo "Channel name : "$CHANNEL_NAME
 
-echo "Sleep for 20 seconds"
-sleep 20
+echo "Sleep for 10 seconds"
+sleep 10
 verifyResult () {
 	if [ $1 -ne 0 ] ; then
 		echo "!!!!!!!!!!!!!!! "$2" !!!!!!!!!!!!!!!!"

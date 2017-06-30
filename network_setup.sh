@@ -60,7 +60,7 @@ shift $((OPTIND-1))
 UP_DOWN="$@"
 
 ##Set Defaults
-: ${FABRIC_IMAGE_TAG:="x86_64-1.0.0-rc1-snapshot-f5dbbaf"}
+: ${FABRIC_IMAGE_TAG:="latest"}
 : ${CHANNEL_NAME:="mychannel"}
 : ${SECURITY:="n"}
 : ${COMPOSE_FILE:="docker-compose.yaml"}
